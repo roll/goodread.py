@@ -18,7 +18,7 @@ def read(*paths):
 
 
 # Prepare
-PACKAGE = 'packspec'
+PACKAGE = 'goodread'
 INSTALL_REQUIRES = [
     'six>=1.9,<2.0',
     'pyyaml>=3.1,<4.0',
@@ -45,18 +45,18 @@ setup(
     extras_require={'develop': TESTS_REQUIRE},
     entry_points={
         'console_scripts': [
-            'packspec-py = packspec.cli:cli',
+            'goodread-py = goodread.cli:cli',
         ]
     },
     zip_safe=False,
     long_description=README,
-    description='packspec-py',
+    description='goodread-py',
     author='Evgeny Karev',
     author_email='eskarev@gmail.com',
-    url='https://github.com/packspec/packspec-py',
+    url='https://github.com/goodread/goodread-py',
     license='MIT',
     keywords=[
-        'packspec',
+        'goodread',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
