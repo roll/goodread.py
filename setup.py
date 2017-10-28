@@ -21,7 +21,6 @@ def read(*paths):
 PACKAGE = 'goodread'
 INSTALL_REQUIRES = [
     'six>=1.9,<2.0',
-    'pyyaml>=3.1,<4.0',
     'click>=6.0,<7.0',
     'emoji>=0.4,<1.0',
 ]
