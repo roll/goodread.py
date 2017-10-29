@@ -7,51 +7,63 @@ from __future__ import unicode_literals
 import io
 import sys
 import click
+import requests
 import traceback
 from emoji import emojize
 
 
 # Helpers
 
-def parse_document(path):
+
+def load_document(path):
+
+    # Remote document
+    if path.startswith('http'):
+        return requests.get(path).text
+
+    # Local document
+    with io.open(path, encoding='utf-8') as file:
+        return file.read()
+
+
+def parse_document(contents):
     elements = []
     codeblock = ''
     capture = False
 
     # Parse file lines
-    with io.open(path, encoding='utf-8') as file:
-        for line in file:
+    for line in contents.splitlines(True):
 
-            # Heading
-            if line.startswith('#'):
-                heading = line.strip(' #\n')
-                level = len(line) - len(line.lstrip('#'))
-                if (elements and
-                    elements[-1]['type'] == 'heading' and
-                    elements[-1]['level'] == level):
-                    continue
-                elements.append({
-                    'type': 'heading',
-                    'value': heading,
-                    'level': level,
-                })
-
-            # Codeblock
-            if line.startswith('```python'):
-                if 'goodread' in line:
-                    capture = True
-                codeblock = ''
+        # Heading
+        if line.startswith('#'):
+            heading = line.strip(' #\n')
+            level = len(line) - len(line.lstrip('#'))
+            if (elements and
+                elements[-1]['type'] == 'heading' and
+                elements[-1]['level'] == level):
                 continue
-            if line.startswith('```'):
-                if capture:
-                    elements.append({
-                        'type': 'codeblock',
-                        'value': codeblock,
-                    })
-                capture = False
+            elements.append({
+                'type': 'heading',
+                'value': heading,
+                'level': level,
+            })
+
+        # Codeblock
+        if line.startswith('```python'):
+            if 'goodread' in line:
+                capture = True
+            codeblock = ''
+            continue
+        if line.startswith('```'):
             if capture:
-                codeblock += line
-                continue
+                elements.append({
+                    'type': 'codeblock',
+                    'value': codeblock,
+                })
+            capture = False
+        if capture:
+            codeblock += line
+            continue
 
     return elements
 
@@ -82,7 +94,8 @@ def test_document(elements):
             except Exception:
                 _, exception, tb = sys.exc_info()
                 exception_line = traceback.extract_tb(tb)[-1][1]
-            for line_number, line in enumerate(element['value'].strip().split('\n'), start=1):
+            lines = element['value'].strip().splitlines()
+            for line_number, line in enumerate(lines, start=1):
                 if line_number < exception_line:
                     report(line, type='success')
                     passed += 1
@@ -155,7 +168,8 @@ def report(text, type, level=None, exception=None, passed=None, failed=None, ski
 def cli(paths=['README.md']):
     success = True
     for path_number, path in enumerate(paths, start=1):
-        elements = parse_document(path)
+        contents = load_document(path)
+        elements = parse_document(contents)
         success = success and test_document(elements)
         if path_number < len(paths):
             report(None, type='separator')
