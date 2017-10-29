@@ -24,12 +24,17 @@ def parse_document(path):
 
             # Heading
             if line.startswith('#'):
-                heading = line.strip('#\n ')
-                if not elements or elements[-1]['type'] == 'codeblock':
-                    elements.append({
-                        'type': 'heading',
-                        'value': heading,
-                    })
+                heading = line.strip(' #\n')
+                level = len(line) - len(line.lstrip('#'))
+                if (elements and
+                    elements[-1]['type'] == 'heading' and
+                    elements[-1]['level'] == level):
+                    continue
+                elements.append({
+                    'type': 'heading',
+                    'value': heading,
+                    'level': level,
+                })
 
             # Codeblock
             if line.startswith('```python'):
@@ -64,9 +69,10 @@ def test_document(elements):
 
         # Heading
         if element['type'] == 'heading':
-            report(element['value'], type='heading')
+            report(element['value'], type='heading', level=element['level'])
             if title is None:
                 title = element['value']
+                report(None, type='separator')
 
         # Codeblock
         elif element['type'] == 'codeblock':
@@ -108,39 +114,52 @@ def instrument(codeblock):
     return '\n'.join(lines)
 
 
-def report(text, type, exception=None, passed=None, failed=None, skipped=None):
+state = {'prev_type': None}
+def report(text, type, level=None, exception=None, passed=None, failed=None, skipped=None):
     message = None
-    if type == 'heading':
-        message = click.style(emojize('\n #  ', use_aliases=True))
-        message += click.style('%s\n' % text, bold=True)
+    if type == 'blank':
+        return click.echo('')
+    elif type == 'separator':
+        message = click.style(emojize(':heavy_minus_sign:'*3, use_aliases=True))
+    elif type == 'heading':
+        message = click.style(emojize(' %s  ' % ('#' * (level or 1)), use_aliases=True))
+        message += click.style('%s' % text, bold=True)
     elif type == 'success':
         message = click.style(emojize(' :heavy_check_mark:  ', use_aliases=True), fg='green')
         message += click.style('%s' % text)
     elif type == 'failure':
         message = click.style(emojize(' :x:  ', use_aliases=True), fg='red')
         message += click.style('%s\n' % text)
-        message += click.style('Exception: %s' % exception, fg='red', bold=True)
+        message += click.style('Exception: %s\n' % exception, fg='red', bold=True)
     elif type == 'skipped':
         message = click.style(emojize(' :heavy_minus_sign:  ', use_aliases=True), fg='yellow')
         message += click.style('%s' % text)
     elif type == 'summary':
         color = 'green'
-        message = click.style(emojize('\n :heavy_check_mark:  ', use_aliases=True), fg='green', bold=True)
+        message = click.style(emojize(' :heavy_check_mark:  ', use_aliases=True), fg='green', bold=True)
         if (failed + skipped) > 0:
             color = 'red'
-            message = click.style(emojize('\n :x:  ', use_aliases=True), fg='red', bold=True)
-        message += click.style('%s: %s/%s\n' % (text, passed, passed + failed + skipped), bold=True, fg=color)
+            message = click.style(emojize(' :x:  ', use_aliases=True), fg='red', bold=True)
+        message += click.style('%s: %s/%s' % (text, passed, passed + failed + skipped), bold=True, fg=color)
     if message:
+        if state['prev_type'] != type:
+            message = '\n' + message
         click.echo(message)
+    state['prev_type'] = type
 
 
 # Main program
 
 @click.command()
-@click.argument('path', required=False, default='README.md')
-def cli(path):
-    elements = parse_document(path)
-    success = test_document(elements)
+@click.argument('paths', nargs=-1)
+def cli(paths=['README.md']):
+    success = True
+    for path_number, path in enumerate(paths, start=1):
+        elements = parse_document(path)
+        success = success and test_document(elements)
+        if path_number < len(paths):
+            report(None, type='separator')
+    report(None, type='blank')
     if not success:
         exit(1)
 
