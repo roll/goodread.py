@@ -68,7 +68,7 @@ def parse_document(contents):
     return elements
 
 
-def test_document(elements):
+def test_document(elements, exit_first=False):
     scope = {}
     passed = 0
     failed = 0
@@ -101,6 +101,9 @@ def test_document(elements):
                     passed += 1
                 elif line_number == exception_line:
                     report(line, type='failure', exception=exception)
+                    if exit_first:
+                        report(scope, type='scope')
+                        raise exception
                     failed += 1
                 elif line_number > exception_line:
                     report(line, type='skipped')
@@ -128,32 +131,39 @@ def instrument(codeblock):
 
 
 state = {'prev_type': None}
-def report(text, type, level=None, exception=None, passed=None, failed=None, skipped=None):
-    message = None
+def report(value, type, level=None, exception=None, passed=None, failed=None, skipped=None):
+    message = ''
     if type == 'blank':
         return click.echo('')
     elif type == 'separator':
         message = click.style(emojize(':heavy_minus_sign:'*3, use_aliases=True))
     elif type == 'heading':
         message = click.style(emojize(' %s  ' % ('#' * (level or 1)), use_aliases=True))
-        message += click.style('%s' % text, bold=True)
+        message += click.style('%s' % value, bold=True)
     elif type == 'success':
         message = click.style(emojize(' :heavy_check_mark:  ', use_aliases=True), fg='green')
-        message += click.style('%s' % text)
+        message += click.style('%s' % value)
     elif type == 'failure':
         message = click.style(emojize(' :x:  ', use_aliases=True), fg='red')
-        message += click.style('%s\n' % text)
-        message += click.style('Exception: %s\n' % exception, fg='red', bold=True)
+        message += click.style('%s\n' % value)
+        message += click.style('Exception: %s' % exception, fg='red', bold=True)
+    elif type == 'scope':
+        message += '---\n\n'
+        message += 'Scope (current execution scope):\n'
+        message += '%s\n' % list(value)
+        message += '\n---\n'
     elif type == 'skipped':
         message = click.style(emojize(' :heavy_minus_sign:  ', use_aliases=True), fg='yellow')
-        message += click.style('%s' % text)
+        message += click.style('%s' % value)
     elif type == 'summary':
         color = 'green'
         message = click.style(emojize(' :heavy_check_mark:  ', use_aliases=True), fg='green', bold=True)
         if (failed + skipped) > 0:
             color = 'red'
             message = click.style(emojize(' :x:  ', use_aliases=True), fg='red', bold=True)
-        message += click.style('%s: %s/%s' % (text, passed, passed + failed + skipped), bold=True, fg=color)
+        message += click.style('%s: %s/%s' % (value, passed, passed + failed + skipped), bold=True, fg=color)
+    if type in ['success', 'failure', 'skipped']:
+        type = 'test'
     if message:
         if state['prev_type'] != type:
             message = '\n' + message
@@ -165,12 +175,14 @@ def report(text, type, level=None, exception=None, passed=None, failed=None, ski
 
 @click.command()
 @click.argument('paths', nargs=-1)
-def cli(paths=['README.md']):
+@click.option('-x', '--exit-first', is_flag=True)
+def cli(paths, exit_first):
     success = True
+    paths = paths or ['README.md']
     for path_number, path in enumerate(paths, start=1):
         contents = load_document(path)
         elements = parse_document(contents)
-        success = success and test_document(elements)
+        success = test_document(elements, exit_first=exit_first) and success
         if path_number < len(paths):
             report(None, type='separator')
     report(None, type='blank')
