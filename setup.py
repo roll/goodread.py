@@ -23,6 +23,7 @@ INSTALL_REQUIRES = [
     'six>=1.9,<2.0',
     'click>=6.0,<7.0',
     'emoji>=0.4,<1.0',
+    'pyyaml>=3.1,<4.0',
     'requests>=2.8,<3.0',
 ]
 TESTS_REQUIRE = [
