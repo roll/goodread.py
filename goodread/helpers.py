@@ -6,9 +6,11 @@ from __future__ import unicode_literals
 
 import io
 import os
+import sys
 import six
 import yaml
 import click
+import traceback
 from emoji import emojize
 state = {'last_message_type': None}
 
@@ -29,7 +31,7 @@ def read_config():
     return config
 
 
-def instrument_codeblock(codeblock):
+def run_codeblock(codeblock, scope):
     lines = []
     for line in codeblock.strip().split('\n'):
         if ' # ' in line:
@@ -40,7 +42,14 @@ def instrument_codeblock(codeblock):
                 message = '%s != %s' % (left, right)
                 line = 'assert %s == %s, "%s"' % (left, right, message)
         lines.append(line)
-    return '\n'.join(lines)
+    exception_line = 1000  # infinity
+    exception = None
+    try:
+        exec('\n'.join(lines), scope)
+    except Exception:
+        _, exception, tb = sys.exc_info()
+        exception_line = traceback.extract_tb(tb)[-1][1]
+    return [exception, exception_line]
 
 
 def print_message(message, type, level=None, exception=None, passed=None, failed=None, skipped=None):
@@ -50,7 +59,7 @@ def print_message(message, type, level=None, exception=None, passed=None, failed
     elif type == 'separator':
         text = click.style(emojize(':heavy_minus_sign:'*3, use_aliases=True))
     elif type == 'heading':
-        text = click.style(emojize(' %s  ' % ('#' * (level or 1)), use_aliases=True))
+        text = click.style(emojize(' %s ' % ('#' * (level or 1)), use_aliases=True))
         text += click.style('%s' % message, bold=True)
     elif type == 'success':
         text = click.style(emojize(' :heavy_check_mark:  ', use_aliases=True), fg='green')

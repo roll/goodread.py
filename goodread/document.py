@@ -5,9 +5,7 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 
 import io
-import sys
 import requests
-import traceback
 import subprocess
 from . import helpers
 
@@ -20,7 +18,6 @@ class DocumentList(object):
 
     def __init__(self, paths, config):
         self._documents = []
-        config = helpers.read_config()
         for path in paths or [item['main'] for item in config['documents']] or ['README.md']:
             main_path = path
             edit_path = None
@@ -79,13 +76,13 @@ class Document(object):
                 raise Exception('Document "%s" is out of sync' % self._edit_path)
 
         # Remote document
-        if not self._edit_path.startswith('http'):
-            subprocess.run(['editor', self._edit_path],
+        if self._edit_path.startswith('http'):
+            subprocess.run(['xdg-open', self._edit_path],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
         # Local document
         else:
-            subprocess.run(['xdg-open', self._edit_path],
+            subprocess.run(['editor', self._edit_path],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     def sync(self):
@@ -94,16 +91,12 @@ class Document(object):
         if not self._sync_path:
             return
 
-        # Remote document
-        if self._main_path.startswith('http'):
-            raise Exception('Remote document can not be synced')
-
         # Save remote to local
-        contents = requests.get(self._sync_path).text
+        contents = _load_document(self._sync_path)
         with io.open(self._main_path, 'w', encoding='utf-8') as file:
             file.write(contents)
 
-    def test(self, sync=False, report=False, exit_first=False):
+    def test(self, sync=False, return_report=False, exit_first=False):
 
         # No test path
         path = self._sync_path if sync else self._main_path
@@ -115,7 +108,7 @@ class Document(object):
         elements = _parse_document(contents)
         report = _validate_document(elements, exit_first=exit_first)
 
-        return report if report else report['valid']
+        return report if return_report else report['valid']
 
 
 # Internal
@@ -167,7 +160,7 @@ def _parse_document(contents):
                     'value': codeblock,
                 })
             capture = False
-        if capture:
+        if capture and line.strip():
             codeblock += line
             continue
 
@@ -195,12 +188,7 @@ def _validate_document(elements, exit_first=False):
 
         # Codeblock
         elif element['type'] == 'codeblock':
-            exception_line = 1000  # infinity
-            try:
-                exec(helpers.instrument_codeblock(element['value']), scope)
-            except Exception:
-                _, exception, tb = sys.exc_info()
-                exception_line = traceback.extract_tb(tb)[-1][1]
+            exception, exception_line = helpers.run_codeblock(element['value'], scope)
             lines = element['value'].strip().splitlines()
             for line_number, line in enumerate(lines, start=1):
                 if line_number < exception_line:
