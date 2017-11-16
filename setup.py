@@ -51,7 +51,7 @@ setup(
     },
     zip_safe=False,
     long_description=README,
-    description='Test runner for README.md. Support for Python/JavaScript/Ruby/PHP code blocks. Integration with hackmd.io.',
+    description='Doctest for markdown with comment-based assertions. Python/JavaScript/Ruby/PHP test runners and hackmd.io integration.',
     author='Evgeny Karev',
     author_email='eskarev@gmail.com',
     url='https://github.com/goodread/goodread-py',
